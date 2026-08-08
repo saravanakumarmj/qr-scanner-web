@@ -7,6 +7,7 @@ import logging
 from nicegui import ui
 
 from config import settings
+from database.supabase_db import get_supabase_status
 from pages.administration import (
     render_audit_log,
     render_devices,
@@ -30,6 +31,12 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+def log_supabase_startup_status() -> None:
+    """Log the sanitized Supabase status before serving the application."""
+    status = get_supabase_status(force_refresh=True)
+    logger.info("Supabase startup status: %s", status.state.value)
 
 
 @ui.page("/")
@@ -110,6 +117,7 @@ def profile_page() -> None:
 
 if __name__ in {"__main__", "__mp_main__"}:
     logger.info("Starting QR Management System application shell")
+    log_supabase_startup_status()
     ui.run(
         host=settings.app_host,
         port=settings.app_port,
