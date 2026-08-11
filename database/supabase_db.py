@@ -53,19 +53,33 @@ class SupabaseConnectionStatus:
 
 
 class SupabaseConfigurationError(RuntimeError):
-    """Raised when a caller asks for a client without both required settings."""
+    """Raised when the requested Supabase client is not configured."""
 
 
-@lru_cache(maxsize=1)
-def get_supabase_client() -> Client:
-    """Create one application-level Supabase client without making database changes."""
-    if not settings.supabase_configured:
+@lru_cache(maxsize=2)
+def get_supabase_client(*, use_secret_key: bool = False) -> Client:
+    """Create a cached Supabase client using the requested server-side key."""
+
+    if not settings.supabase_url:
         raise SupabaseConfigurationError(
-            "SUPABASE_URL and SUPABASE_KEY must be configured before creating a client."
+            "SUPABASE_URL must be configured before creating a client."
         )
 
-    # The configured key is deliberately never logged or returned to the UI.
-    return create_client(settings.supabase_url, settings.supabase_key)
+    if use_secret_key:
+        if not settings.supabase_secret_key:
+            raise SupabaseConfigurationError(
+                "SUPABASE_SECRET_KEY must be configured for admin operations."
+            )
+        key = settings.supabase_secret_key
+    else:
+        if not settings.supabase_key:
+            raise SupabaseConfigurationError(
+                "SUPABASE_KEY must be configured before creating a client."
+            )
+        key = settings.supabase_key
+
+    # Keys are deliberately never logged or returned to the UI.
+    return create_client(settings.supabase_url, key)
 
 
 def get_supabase_status(*, force_refresh: bool = False) -> SupabaseConnectionStatus:

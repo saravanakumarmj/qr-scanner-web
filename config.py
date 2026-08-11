@@ -38,11 +38,18 @@ class Settings:
     app_reload: bool
     supabase_url: str | None
     supabase_key: str | None
+    supabase_secret_key: str | None
+    nicegui_storage_secret: str
 
     @property
     def supabase_configured(self) -> bool:
-        """Whether both required Supabase values have been supplied."""
+        """Whether the normal Supabase connection is configured."""
         return bool(self.supabase_url and self.supabase_key)
+
+    @property
+    def supabase_admin_configured(self) -> bool:
+        """Whether the server-side Supabase secret is configured."""
+        return bool(self.supabase_url and self.supabase_secret_key)
 
 
 @lru_cache(maxsize=1)
@@ -55,6 +62,8 @@ def get_settings() -> Settings:
         app_reload=_read_bool(os.getenv("APP_RELOAD")),
         supabase_url=os.getenv("SUPABASE_URL") or None,
         supabase_key=os.getenv("SUPABASE_KEY") or None,
+        supabase_secret_key=os.getenv("SUPABASE_SECRET_KEY") or None,
+        nicegui_storage_secret=os.getenv("NICEGUI_STORAGE_SECRET", ""),
     )
 
 

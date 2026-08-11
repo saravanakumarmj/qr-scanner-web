@@ -16,7 +16,9 @@ def _settings(*, url: str | None, key: str | None) -> Settings:
         app_reload=False,
         supabase_url=url,
         supabase_key=key,
+        supabase_secret_key=None,
     )
+
 
 
 def test_status_is_not_configured_without_required_values(monkeypatch) -> None:
