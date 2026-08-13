@@ -43,7 +43,7 @@ class Settings:
 
     nicegui_storage_secret: str
 
-    printer_name: str
+    printer_name: str | None
     printer_enabled: bool
 
     @property
@@ -86,10 +86,8 @@ def get_settings() -> Settings:
             "",
         ),
 
-        printer_name=os.getenv(
-            "PRINTER_NAME",
-            "Zebra ZD230 printer",
-        ),
+        printer_name=os.getenv("PRINTER_NAME") or None,
+        
         printer_enabled=_read_bool(
             os.getenv("PRINTER_ENABLED"),
             default=True,

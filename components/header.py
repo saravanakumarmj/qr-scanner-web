@@ -14,7 +14,7 @@ def render_header() -> None:
     role = user.get("role", "")
 
     with ui.row().classes("w-full items-center no-wrap px-4"):
-        ui.label("QR Management System").classes(
+        ui.label("Classic Pet ").classes(
             "text-h6 text-weight-bold"
         )
 

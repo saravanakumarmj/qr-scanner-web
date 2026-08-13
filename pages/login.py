@@ -20,7 +20,7 @@ def render_login() -> None:
         with ui.card().classes("w-96 p-8 shadow-4"):
             ui.icon("qr_code_2").classes("text-5xl text-primary")
 
-            ui.label("QR Management System").classes(
+            ui.label("Can Management System").classes(
                 "text-h5 text-weight-bold"
             )
 

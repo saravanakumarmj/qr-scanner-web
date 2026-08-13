@@ -21,7 +21,7 @@ def render_navigation(active_key: str) -> None:
     with ui.column().classes("w-full gap-1 p-3"):
         with ui.row().classes("items-center gap-2 px-3 py-3"):
             ui.icon("qr_code_2").classes("text-3xl text-cyan-3")
-            ui.label("QR MANAGEMENT").classes("text-subtitle1 text-weight-bold tracking-wide")
+            ui.label("CAN MANAGEMENT System").classes("text-subtitle1 text-weight-bold tracking-wide")
         ui.separator().classes("bg-blue-grey-7 mb-2")
         _navigation_button("Dashboard", "dashboard", "/dashboard", "dashboard", active_key)
 
