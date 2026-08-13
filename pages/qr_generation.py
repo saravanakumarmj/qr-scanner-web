@@ -1,13 +1,129 @@
-"""QR generation page placeholder."""
+"""QR generation page."""
 
-from components.layout import placeholder_page
+from nicegui import app, ui
 
+from components.layout import application_layout
+from services.qr_service import generate_qr_batch
 
 def render_qr_generation() -> None:
-    """Render the deferred QR generation page."""
-    placeholder_page(
-        title="Generate QR",
-        nav_key="generate",
-        description="QR generation, sequence reservation, preview, and printing will be added in a later stage.",
-        icon="qr_code_2",
-    )
+    """Render the QR generation page."""
+    with application_layout("Generate QR", "generate"):
+        ui.label(
+            "Generate a new batch of QR codes."
+        ).classes("text-subtitle1 text-grey-7 mb-4")
+
+        with ui.card().classes("w-full max-w-2xl p-6"):
+            ui.label("QR Generation").classes(
+                "text-h6 text-weight-medium"
+            )
+
+            ui.label(
+                "Enter the number of QR codes to generate."
+            ).classes("text-body2 text-grey-7 mb-4")
+
+            quantity = ui.number(
+                label="Quantity",
+                min=1,
+                max=9999,
+                value=1,
+                step=1,
+            ).props("outlined").classes("w-full")
+
+            error_label = ui.label().classes(
+                "text-negative text-body2 mt-3"
+            )
+            error_label.visible = False
+
+            async def handle_generate() -> None:
+                error_label.visible = False
+
+                try:
+                    requested_quantity = int(quantity.value or 0)
+
+                    if requested_quantity <= 0:
+                        raise ValueError(
+                            "Quantity must be greater than zero."
+                        )
+
+                    if requested_quantity > 9999:
+                        raise ValueError(
+                            "Maximum QR generation quantity is 9999."
+                        )
+
+                    user = app.storage.user.get("user")
+
+                    if not user:
+                        ui.navigate.to("/login")
+                        return
+
+                    generated_by = user.get("user_id")
+
+                    if not generated_by:
+                        raise ValueError(
+                            "Authenticated user information is unavailable."
+                        )
+
+                    result = generate_qr_batch(
+                        requested_quantity,
+                        generated_by,
+                    )
+
+                    # Generation summary dialog
+                    with ui.dialog() as dialog:
+                        with ui.card().classes("w-96 p-6"):
+                            ui.label(
+                                "Generation Summary"
+                            ).classes(
+                                "text-h6 text-weight-medium"
+                            )
+
+                            ui.separator().classes("my-3")
+
+                            with ui.grid(columns="2").classes(
+                                "w-full gap-y-3"
+                            ):
+                                ui.label("Quantity").classes(
+                                    "text-grey-7"
+                                )
+                                ui.label(str(result.quantity))
+
+                                ui.label("Start QR Code").classes(
+                                    "text-grey-7"
+                                )
+                                ui.label(result.start_qr_code)
+
+                                ui.label("End QR Code").classes(
+                                    "text-grey-7"
+                                )
+                                ui.label(result.end_qr_code)
+
+                                ui.label("Print Status").classes(
+                                    "text-grey-7"
+                                )
+                                ui.label(result.print_status)
+
+                            with ui.row().classes(
+                                "w-full justify-end mt-5"
+                            ):
+                                ui.button(
+                                    "OK",
+                                    on_click=dialog.close,
+                                ).props("no-caps")
+
+                    dialog.open()
+
+                except ValueError as exc:
+                    error_label.text = str(exc)
+                    error_label.visible = True
+
+                except Exception as exc:
+                    error_label.text = (
+                        f"Unable to generate QR codes: {exc}"
+                    )
+                    error_label.visible = True
+
+            ui.button(
+                "Generate QR Codes",
+                icon="qr_code_2",
+                on_click=handle_generate,
+            ).props("no-caps").classes("w-full mt-4")

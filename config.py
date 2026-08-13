@@ -36,10 +36,15 @@ class Settings:
     app_host: str
     app_port: int
     app_reload: bool
+
     supabase_url: str | None
     supabase_key: str | None
     supabase_secret_key: str | None
+
     nicegui_storage_secret: str
+
+    printer_name: str
+    printer_enabled: bool
 
     @property
     def supabase_configured(self) -> bool:
@@ -54,16 +59,41 @@ class Settings:
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Create and cache application settings; no remote connection is made here."""
+    """Create and cache application settings."""
+
     return Settings(
-        app_name=os.getenv("APP_NAME", "QR Management System"),
-        app_host=os.getenv("APP_HOST", "127.0.0.1"),
-        app_port=_read_port(os.getenv("APP_PORT")),
-        app_reload=_read_bool(os.getenv("APP_RELOAD")),
+        app_name=os.getenv(
+            "APP_NAME",
+            "QR Management System",
+        ),
+        app_host=os.getenv(
+            "APP_HOST",
+            "127.0.0.1",
+        ),
+        app_port=_read_port(
+            os.getenv("APP_PORT"),
+        ),
+        app_reload=_read_bool(
+            os.getenv("APP_RELOAD"),
+        ),
+
         supabase_url=os.getenv("SUPABASE_URL") or None,
         supabase_key=os.getenv("SUPABASE_KEY") or None,
         supabase_secret_key=os.getenv("SUPABASE_SECRET_KEY") or None,
-        nicegui_storage_secret=os.getenv("NICEGUI_STORAGE_SECRET", ""),
+
+        nicegui_storage_secret=os.getenv(
+            "NICEGUI_STORAGE_SECRET",
+            "",
+        ),
+
+        printer_name=os.getenv(
+            "PRINTER_NAME",
+            "Zebra ZD230 printer",
+        ),
+        printer_enabled=_read_bool(
+            os.getenv("PRINTER_ENABLED"),
+            default=True,
+        ),
     )
 
 
