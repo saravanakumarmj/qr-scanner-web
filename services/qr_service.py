@@ -97,3 +97,184 @@ def generate_qr_batch(
         quantity=quantity,
         print_status=batch["print_status"],
     )
+
+def get_qr_codes_for_printing(
+    start_qr_code: str,
+    end_qr_code: str,
+) -> list[dict]:
+    """Get QR master records for a generation range."""
+
+    client = get_supabase_client()
+
+    response = (
+        client.table("qr_master")
+        .select("qr_code, qr_code_encoded, qr_printed_ts")
+        .gte("qr_code", start_qr_code)
+        .lte("qr_code", end_qr_code)
+        .order("qr_code")
+        .execute()
+    )
+
+    records = response.data or []
+
+    if not records:
+        raise RuntimeError(
+            "No QR master records found for the requested range."
+        )
+
+    return records
+
+def mark_qr_codes_printed(
+    qr_codes: list[str],
+    updated_by: str,
+) -> None:
+    """Mark successfully submitted QR codes as printed."""
+
+    if not qr_codes:
+        return
+
+    client = get_supabase_client()
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    response = (
+        client.table("qr_master")
+        .update(
+            {
+                "qr_printed_ts": now,
+                "updated_ts": now,
+                "updated_by": updated_by,
+            }
+        )
+        .in_("qr_code", qr_codes)
+        .execute()
+    )
+
+    if response.data is None:
+        raise RuntimeError(
+            "Unable to update QR print status."
+        )   
+
+def print_qr_batch(encoded_qr_values: list[str]) -> int:
+    """Print QR codes two labels per physical row."""
+
+    if not encoded_qr_values:
+        raise PrinterError("No QR codes available for printing.")
+
+    rows_printed = 0
+
+    for index in range(0, len(encoded_qr_values), 2):
+        left_qr = encoded_qr_values[index]
+
+        right_qr = (
+            encoded_qr_values[index + 1]
+            if index + 1 < len(encoded_qr_values)
+            else None
+        )
+
+        zpl = build_two_label_zpl(
+            left_qr,
+            right_qr,
+        )
+
+        print_zpl(zpl)
+        rows_printed += 1
+
+    return rows_printed
+
+def print_qr_generation(
+    generation_id: str,
+    start_qr_code: str,
+    end_qr_code: str,
+    updated_by: str,
+) -> int:
+    """Print a generated QR batch and mark the QR codes as printed."""
+
+    if not generation_id:
+        raise ValueError("Generation ID is required.")
+
+    if not start_qr_code or not end_qr_code:
+        raise ValueError("QR generation range is required.")
+
+    if not updated_by:
+        raise ValueError("Updated by is required.")
+
+    client = get_supabase_client()
+
+    # Get QR records belonging to this generation range.
+    response = (
+        client.table("qr_master")
+        .select("qr_code, qr_code_encoded, qr_printed_ts")
+        .gte("qr_code", start_qr_code)
+        .lte("qr_code", end_qr_code)
+        .order("qr_code")
+        .execute()
+    )
+
+    records = response.data or []
+
+    if not records:
+        raise RuntimeError(
+            "No QR master records found for this generation."
+        )
+
+    expected_quantity = int(end_qr_code[6:]) - int(start_qr_code[6:]) + 1
+
+    if len(records) != expected_quantity:
+        raise RuntimeError(
+            f"QR master contains {len(records)} records, "
+            f"but {expected_quantity} were expected."
+        )
+
+    encoded_values = [
+        record["qr_code_encoded"]
+        for record in records
+        if record.get("qr_code_encoded")
+    ]
+
+    if len(encoded_values) != len(records):
+        raise RuntimeError(
+            "One or more QR codes do not have an encoded value."
+        )
+
+    # Print.
+    from services.printer_service import print_qr_batch
+
+    print_qr_batch(encoded_values)
+
+    # Printing was successfully submitted to the printer.
+    now = datetime.now(timezone.utc).isoformat()
+
+    qr_codes = [
+        record["qr_code"]
+        for record in records
+    ]
+
+    (
+        client.table("qr_master")
+        .update(
+            {
+                "qr_printed_ts": now,
+                "updated_ts": now,
+                "updated_by": updated_by,
+            }
+        )
+        .in_("qr_code", qr_codes)
+        .execute()
+    )
+
+    # Mark generation as printed.
+    (
+        client.table("qr_generation")
+        .update(
+            {
+                "print_status": "PRINTED",
+            }
+        )
+        .eq("generation_id", generation_id)
+        .execute()
+    )
+
+    return len(records)
+
+    

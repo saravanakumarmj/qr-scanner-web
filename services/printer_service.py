@@ -93,7 +93,10 @@ def print_zpl(zpl: str) -> None:
         ) from exc
 
 
-def print_test_labels(left_qr: str, right_qr: str) -> None:
+def print_test_labels(
+    left_qr: str,
+    right_qr: str | None = None,
+) -> None:
     """Print one two-label test row."""
 
     zpl = build_two_label_zpl(
@@ -102,3 +105,34 @@ def print_test_labels(left_qr: str, right_qr: str) -> None:
     )
 
     print_zpl(zpl)
+
+
+def print_qr_batch(encoded_qr_values: list[str]) -> int:
+    """Print a QR batch using two labels per physical row.
+
+    Returns the number of physical print rows submitted.
+    """
+
+    if not encoded_qr_values:
+        raise PrinterError("No QR codes available for printing.")
+
+    rows_printed = 0
+
+    for index in range(0, len(encoded_qr_values), 2):
+        left_qr = encoded_qr_values[index]
+
+        right_qr = (
+            encoded_qr_values[index + 1]
+            if index + 1 < len(encoded_qr_values)
+            else None
+        )
+
+        zpl = build_two_label_zpl(
+            left_qr,
+            right_qr,
+        )
+
+        print_zpl(zpl)
+        rows_printed += 1
+
+    return rows_printed
