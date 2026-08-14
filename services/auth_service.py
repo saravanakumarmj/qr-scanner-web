@@ -48,7 +48,9 @@ def login(user_id: str, password: str) -> AuthenticatedUser:
     user = response.data[0]
 
     if not user["is_active"]:
-        raise ValueError("This user account is inactive.")
+        raise ValueError(
+            "Account deactivated. Please contact your administrator."
+        )
 
     # Supabase Auth still uses the internal email.
     auth_email = build_auth_email(user_id)
@@ -70,12 +72,7 @@ def login(user_id: str, password: str) -> AuthenticatedUser:
         role=user["role"],
         is_active=user["is_active"],
     )
-
-
-def logout() -> None:
-    """Sign out the current Supabase session."""
-    client = get_supabase_client()
-    client.auth.sign_out()
+\
 
 
 def get_current_session():
