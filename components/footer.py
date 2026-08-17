@@ -4,35 +4,10 @@ from nicegui import app, ui
 
 from config import settings
 from database.supabase_db import get_supabase_status
+from services.printer_service import get_printer_status
 
 
-def get_printer_status() -> str:
-    """Return the current configured printer status."""
 
-    if not settings.printer_name:
-        return "Not configured"
-
-    try:
-        import win32print
-
-        handle = win32print.OpenPrinter(settings.printer_name)
-
-        try:
-            info = win32print.GetPrinter(handle, 2)
-            attributes = info["Attributes"]
-
-            # Zebra ZD230 USB driver reports this bit when
-            # the physical printer is switched off.
-            if attributes & 1024:
-                return "Not connected"
-
-            return "Connected"
-
-        finally:
-            win32print.ClosePrinter(handle)
-
-    except Exception:
-        return "Not connected"
 
 def get_current_user() -> str:
     """Return the currently logged-in user."""
@@ -53,6 +28,12 @@ def render_footer() -> None:
     printer_status = get_printer_status()
     user_name = get_current_user()
 
+    printer_label = (
+        "Connected"
+        if printer_status["connected"]
+        else "Not connected"
+    )
+
     with ui.row().classes(
         "w-full items-center gap-6 px-5 py-2 text-caption"
     ):
@@ -63,7 +44,9 @@ def render_footer() -> None:
         )
 
         ui.label(
-            f"Printer: {printer_status}"
+            f"Printer: {printer_label}"
+        ).tooltip(
+            printer_status["message"]
         )
 
         ui.label(

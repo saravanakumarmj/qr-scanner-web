@@ -18,7 +18,7 @@ def get_printer_name() -> str:
 
 
 def get_printer_status() -> dict:
-    """Return the current status of the configured Windows printer."""
+    """Return the physical status of the configured Zebra printer."""
 
     if not settings.printer_enabled:
         return {
@@ -27,29 +27,44 @@ def get_printer_status() -> dict:
             "message": "Printer is disabled in configuration.",
         }
 
+    if not settings.printer_name:
+        return {
+            "connected": False,
+            "status": "NOT_CONFIGURED",
+            "message": "Printer is not configured.",
+        }
+
     try:
         printer = win32print.OpenPrinter(settings.printer_name)
 
         try:
             info = win32print.GetPrinter(printer, 2)
+            attributes = info["Attributes"]
+
+            # Zebra ZD230 USB driver reports this bit
+            # when the physical printer is switched off.
+            if attributes & 1024:
+                return {
+                    "connected": False,
+                    "status": "OFFLINE",
+                    "message": "Printer is not connected.",
+                }
+
+            return {
+                "connected": True,
+                "status": "READY",
+                "message": "Printer is connected.",
+            }
+
         finally:
             win32print.ClosePrinter(printer)
-
-        status = info.get("Status", 0)
-
-        return {
-            "connected": True,
-            "status": status,
-            "message": "Printer is available.",
-        }
 
     except Exception as exc:
         return {
             "connected": False,
             "status": "ERROR",
-            "message": str(exc),
+            "message": "Printer is not connected.",
         }
-
 
 def print_zpl(zpl: str) -> None:
     """Send raw ZPL to the configured Windows printer."""
@@ -59,6 +74,15 @@ def print_zpl(zpl: str) -> None:
 
     if not zpl or not zpl.strip():
         raise PrinterError("ZPL data is empty.")
+
+    # Verify printer is actually available before printing.
+    status = get_printer_status()
+
+    if not status["connected"]:
+        raise PrinterError(
+            "Printer is not connected. "
+            "Please connect the printer and try again."
+        )
 
     try:
         printer = win32print.OpenPrinter(settings.printer_name)

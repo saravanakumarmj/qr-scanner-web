@@ -6,6 +6,10 @@ from nicegui import ui
 
 from components.layout import application_layout
 from database.supabase_db import get_supabase_client
+from services.printer_service import (
+    get_printer_status,
+    print_qr_batch,
+)
 
 
 def render_print_history() -> None:
@@ -81,10 +85,212 @@ def render_print_history() -> None:
                         "label": "Status",
                         "field": "print_status",
                     },
+                    {
+                        "name": "actions",
+                        "label": "Action",
+                        "field": "actions",
+                    },
                 ],
                 rows=[],
                 row_key="generation_id",
             ).classes("w-full mt-6")
+
+            # ---------------------------------------------------------
+            # Reprint
+            # ---------------------------------------------------------
+
+            async def reprint_generation(row: dict) -> None:
+                """Reprint all QR codes belonging to one generation."""
+
+                try:
+                    # 1. Check printer before doing anything.
+                    printer_status = get_printer_status()
+
+                    if not printer_status["connected"]:
+                        ui.notify(
+                            "Printer not connected. "
+                            "Please connect the printer and try again.",
+                            type="negative",
+                        )
+                        return
+
+                    start_qr = row.get("start_qr_code")
+                    end_qr = row.get("end_qr_code")
+
+                    if not start_qr or not end_qr:
+                        ui.notify(
+                            "Invalid QR range in print history.",
+                            type="negative",
+                        )
+                        return
+
+                    quantity = row.get("quantity", 0)
+
+                    # 2. Ask for confirmation.
+                    with ui.dialog() as dialog:
+                        with ui.card().classes("w-96 p-6"):
+
+                            ui.label(
+                                "Confirm Reprint"
+                            ).classes(
+                                "text-h6 text-weight-medium"
+                            )
+
+                            ui.separator().classes("my-3")
+
+                            ui.label(
+                                f"Reprint {quantity} QR codes?"
+                            ).classes("text-body1")
+
+                            ui.label(
+                                f"{start_qr}  →  {end_qr}"
+                            ).classes(
+                                "text-body2 text-grey-7 mt-2"
+                            )
+
+                            with ui.row().classes(
+                                "w-full justify-end gap-3 mt-6"
+                            ):
+
+                                ui.button(
+                                    "Cancel",
+                                    on_click=dialog.close,
+                                ).props("no-caps")
+
+                                async def confirm_reprint() -> None:
+                                    dialog.close()
+
+                                    try:
+                                        # Check printer again immediately
+                                        # before submitting the print job.
+                                        printer_status = (
+                                            get_printer_status()
+                                        )
+
+                                        if not printer_status["connected"]:
+                                            ui.notify(
+                                                "Printer not connected. "
+                                                "Please connect the printer "
+                                                "and try again.",
+                                                type="negative",
+                                            )
+                                            return
+
+                                        client = get_supabase_client()
+
+                                        # 3. Get the encoded QR values for
+                                        # the selected generation range.
+                                        response = (
+                                            client.table("qr_master")
+                                            .select(
+                                                "qr_code,qr_code_encoded"
+                                            )
+                                            .gte(
+                                                "qr_code",
+                                                start_qr,
+                                            )
+                                            .lte(
+                                                "qr_code",
+                                                end_qr,
+                                            )
+                                            .order(
+                                                "qr_code",
+                                                desc=False,
+                                            )
+                                            .execute()
+                                        )
+
+                                        records = response.data or []
+
+                                        if not records:
+                                            ui.notify(
+                                                "No QR codes found "
+                                                "for this generation.",
+                                                type="negative",
+                                            )
+                                            return
+
+                                        encoded_values = [
+                                            record["qr_code_encoded"]
+                                            for record in records
+                                            if record.get(
+                                                "qr_code_encoded"
+                                            )
+                                        ]
+
+                                        if not encoded_values:
+                                            ui.notify(
+                                                "No encoded QR values "
+                                                "available for reprint.",
+                                                type="negative",
+                                            )
+                                            return
+
+                                        # 4. Print.
+                                        print_qr_batch(
+                                            encoded_values
+                                        )
+
+                                        ui.notify(
+                                            f"Reprint submitted successfully "
+                                            f"for {len(encoded_values)} QR codes.",
+                                            type="positive",
+                                        )
+
+                                    except Exception as exc:
+                                        ui.notify(
+                                            f"Reprint failed: {exc}",
+                                            type="negative",
+                                        )
+
+                                ui.button(
+                                    "Reprint",
+                                    icon="print",
+                                    on_click=confirm_reprint,
+                                ).props("no-caps").classes(
+                                    "bg-primary text-white"
+                                )
+
+                    dialog.open()
+
+                except Exception as exc:
+                    ui.notify(
+                        f"Reprint failed: {exc}",
+                        type="negative",
+                    )
+
+            # ---------------------------------------------------------
+            # Table action column
+            # ---------------------------------------------------------
+
+            table.add_slot(
+                "body-cell-actions",
+                """
+                <q-td :props="props">
+                    <q-btn
+                        v-if="['PRINTED', 'PENDING', 'PARTIAL'].includes(props.row.print_status)"
+                        flat
+                        dense
+                        no-caps
+                        color="primary"
+                        icon="print"
+                        label="Reprint"
+                        @click="$parent.$emit('reprint', props.row)"
+                    >
+                        <q-tooltip>Reprint QR codes</q-tooltip>
+                    </q-btn>
+                </q-td>
+                """,
+            )
+
+            table.on(
+                "reprint",
+                lambda event: reprint_generation(event.args),
+            )
+
+            # ---------------------------------------------------------
+            # Load history
+            # ---------------------------------------------------------
 
             async def load_history() -> None:
                 try:
