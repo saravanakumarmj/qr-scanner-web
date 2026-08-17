@@ -4,6 +4,7 @@ from __future__ import annotations
 from services.auth_service import is_authenticated
 
 import logging
+import os
 
 from nicegui import ui, app
 
@@ -154,9 +155,9 @@ if __name__ in {"__main__", "__mp_main__"}:
     logger.info("Starting QR Management System application shell")
     log_supabase_startup_status()
     ui.run(
-        host=settings.app_host,
-        port=settings.app_port,
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", settings.app_port)),
         title=settings.app_name,
-        reload=settings.app_reload,
+        reload=False,
         storage_secret=settings.nicegui_storage_secret,
     )
