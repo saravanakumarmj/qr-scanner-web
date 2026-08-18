@@ -154,10 +154,13 @@ def profile_page() -> None:
 if __name__ in {"__main__", "__mp_main__"}:
     logger.info("Starting QR Management System application shell")
     log_supabase_startup_status()
+
+    is_cloud_run = "PORT" in os.environ
+
     ui.run(
-        host="0.0.0.0",
+        host="0.0.0.0" if is_cloud_run else settings.app_host,
         port=int(os.environ.get("PORT", settings.app_port)),
         title=settings.app_name,
-        reload=False,
+        reload=False if is_cloud_run else settings.app_reload,
         storage_secret=settings.nicegui_storage_secret,
     )
