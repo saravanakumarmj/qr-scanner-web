@@ -182,7 +182,7 @@ def print_qr_batch(encoded_qr_values: list[str]) -> int:
 
     return rows_printed
 
-def print_qr_generation(
+async def print_qr_generation(
     generation_id: str,
     start_qr_code: str,
     end_qr_code: str,
@@ -240,7 +240,7 @@ def print_qr_generation(
     # Print.
     from services.printer_service import print_qr_batch
 
-    print_qr_batch(encoded_values)
+    await  print_qr_batch(encoded_values)
 
     # Printing was successfully submitted to the printer.
     now = datetime.now(timezone.utc).isoformat()

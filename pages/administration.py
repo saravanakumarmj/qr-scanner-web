@@ -3,7 +3,10 @@
 from nicegui import ui
 
 from components.layout import placeholder_page, application_layout
-from services.printer_service import get_printer_status, print_test_labels
+from services.printer_service import (
+    check_print_agent,
+    print_test_labels,
+)
 
 
 from services.user_service import (
@@ -465,20 +468,28 @@ def render_printers() -> None:
     """Render printer administration."""
 
     with application_layout("Printers", "printers"):
-            
+
         with ui.column().classes("w-full gap-4"):
 
-            ui.label("Printer Administration").classes(
+            ui.label(
+                "Printer Administration"
+            ).classes(
                 "text-h4 text-weight-bold"
             )
 
             ui.label(
                 "Configure and test the QR label printer."
-            ).classes("text-body2 text-grey-7")
+            ).classes(
+                "text-body2 text-grey-7"
+            )
 
-            with ui.card().classes("w-full max-w-3xl p-6"):
+            with ui.card().classes(
+                "w-full max-w-3xl p-6"
+            ):
 
-                ui.label("Configured Printer").classes(
+                ui.label(
+                    "Configured Printer"
+                ).classes(
                     "text-h6 text-weight-medium"
                 )
 
@@ -492,89 +503,139 @@ def render_printers() -> None:
                     "text-body2 text-grey-7"
                 )
 
-                ui.button(
-                    "Test Connection",
-                    icon="refresh",
-                    on_click=lambda: check_printer(),
-                ).props("no-caps")
-
                 ui.separator().classes("my-4")
 
-                ui.label("Test Print").classes(
+                ui.label(
+                    "Test Print"
+                ).classes(
                     "text-h6 text-weight-medium"
                 )
 
                 ui.label(
                     "Print one row containing two test QR labels."
-                ).classes("text-body2 text-grey-7 mb-3")
+                ).classes(
+                    "text-body2 text-grey-7 mb-3"
+                )
 
-                with ui.row().classes("w-full gap-4"):
+                with ui.row().classes(
+                    "w-full gap-4"
+                ):
 
                     left_qr = ui.input(
                         "Left QR",
                         value="TEST001",
-                    ).props("outlined").classes("flex-1")
+                    ).props(
+                        "outlined"
+                    ).classes("flex-1")
 
                     right_qr = ui.input(
                         "Right QR",
                         value="TEST002",
-                    ).props("outlined").classes("flex-1")
+                    ).props(
+                        "outlined"
+                    ).classes("flex-1")
 
                 result_label = ui.label().classes(
                     "text-body2 mt-3"
                 )
 
+                # -------------------------------------------------
+                # Printer status check
+                # -------------------------------------------------
+
+                async def check_printer() -> None:
+                    """Check the physical printer status."""
+
+                    client = ui.context.client
+
+                    status = await check_print_agent(
+                        client
+                    )
+
+                    if status["connected"]:
+                        status_label.text = (
+                            "Printer Connected"
+                        )
+
+                        status_label.classes(
+                            "text-positive",
+                            remove="text-negative",
+                        )
+
+                    else:
+                        status_label.text = (
+                            "Printer "
+                            f"{status['status'].replace('_', ' ').title()}"
+                        )
+
+                        status_label.classes(
+                            "text-negative",
+                            remove="text-positive",
+                        )
+
+                    message_label.text = (
+                        status["message"]
+                    )
+
+                # -------------------------------------------------
+                # Test print
+                # -------------------------------------------------
+
+                async def test_print() -> None:
+                    """Print test QR labels."""
+
+                    try:
+                        client = ui.context.client
+
+                        await print_test_labels(
+                            client,
+                            left_qr.value or "",
+                            right_qr.value or "",
+                        )
+
+                        result_label.text = (
+                            "Test print submitted successfully."
+                        )
+
+                        result_label.classes(
+                            "text-positive",
+                            remove="text-negative",
+                        )
+
+                    except Exception as exc:
+                        result_label.text = (
+                            f"Print failed: {exc}"
+                        )
+
+                        result_label.classes(
+                            "text-negative",
+                            remove="text-positive",
+                        )
+
+                # -------------------------------------------------
+                # Buttons
+                # -------------------------------------------------
+
+                ui.button(
+                    "Test Connection",
+                    icon="refresh",
+                    on_click=check_printer,
+                ).props("no-caps")
+
                 ui.button(
                     "Print Test Labels",
                     icon="print",
-                    on_click=lambda: test_print(),
-                ).props("no-caps").classes("mt-3")
+                    on_click=test_print,
+                ).props(
+                    "no-caps"
+                ).classes("mt-3")
 
-            def check_printer() -> None:
-                status = get_printer_status()
-
-                if status["connected"]:
-                    status_label.text = "Printer Connected"
-                    status_label.classes(
-                        "text-positive",
-                        remove="text-negative",
-                    )
-                else:
-                    status_label.text = "? Printer Not Available"
-                    status_label.classes(
-                        "text-negative",
-                        remove="text-positive",
-                    )
-
-                message_label.text = status["message"]
-
-            def test_print() -> None:
-                try:
-                    print_test_labels(
-                        left_qr.value or "",
-                        right_qr.value or "",
-                    )
-
-                    result_label.text = (
-                        "Test print submitted successfully."
-                    )
-                    result_label.classes(
-                        "text-positive",
-                        remove="text-negative",
-                    )
-
-                except Exception as exc:
-                    result_label.text = (
-                        f"Print failed: {exc}"
-                    )
-                    result_label.classes(
-                        "text-negative",
-                        remove="text-positive",
-                    )
-
-            check_printer()
-
-
+                # Initial printer status check
+                ui.timer(
+                    0.1,
+                    check_printer,
+                    once=True,
+                )
 def render_system_settings() -> None:
     """Render the global-settings page."""
     placeholder_page(

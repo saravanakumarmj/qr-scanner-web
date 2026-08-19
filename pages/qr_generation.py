@@ -1,7 +1,7 @@
 """QR generation page."""
 
 from nicegui import app, ui
-from services.printer_service import get_printer_status
+from services.printer_service import check_print_agent
 
 
 from components.layout import application_layout
@@ -78,12 +78,13 @@ def render_qr_generation() -> None:
                         )
 
 
-                    printer_status = get_printer_status()
+                    client = ui.context.client
+
+                    printer_status = await check_print_agent(client)
 
                     if not printer_status["connected"]:
                         raise ValueError(
-                            "Printer not connected. "
-                            "Please connect the printer and try again."
+                            printer_status["message"]
                         )
 
                     result = generate_qr_batch(
@@ -180,7 +181,7 @@ def render_qr_generation() -> None:
                                         )
 
                                     printed_quantity = (
-                                        print_qr_generation(
+                                        await print_qr_generation(
                                             generation_id=(
                                                 result.generation_id
                                             ),

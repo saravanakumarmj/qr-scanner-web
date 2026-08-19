@@ -6,10 +6,13 @@ from nicegui import ui
 
 from components.layout import application_layout
 from database.supabase_db import get_supabase_client
+
+
 from services.printer_service import (
     get_printer_status,
     print_qr_batch,
 )
+
 
 
 def render_print_history() -> None:
@@ -227,8 +230,8 @@ def render_print_history() -> None:
                                             return
 
                                         # 4. Print.
-                                        print_qr_batch(
-                                            encoded_values
+                                        await print_qr_batch(
+                                            encoded_values,
                                         )
 
                                         ui.notify(

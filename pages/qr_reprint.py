@@ -9,7 +9,7 @@ from services.printer_service import print_qr_batch
 
 def render_qr_reprint() -> None:
     """Render the QR bulk reprint page."""
-    client = ui.context.client
+    # client = ui.context.client
     selected_ranges: list[dict] = []
 
     with application_layout("Reprint QR", "reprint"):
@@ -290,15 +290,12 @@ def render_qr_reprint() -> None:
                         encoded_values.append(
                             row["qr_code_encoded"]
                         )
-                
-                
-                    print_status.classes(
-                        "text-negative",
-                        remove="text-positive",
-                    )
-                    return
 
-                
+                if not encoded_values:
+                    raise ValueError(
+                        "No QR codes available for printing."
+                    )
+
                 rows_printed = await print_qr_batch(
                     encoded_values
                 )

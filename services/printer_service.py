@@ -51,37 +51,107 @@ def get_printer_status() -> dict[str, str | bool]:
         "message": "Print agent configured.",
     }
     
-def build_print_zpl(
-    encoded_qr_values: list[str],
-) -> str:
-    """Build ZPL for a QR batch without printing it."""
+async def print_zpl(
+    client: Client,
+    zpl: str,
+) -> dict[str, Any]:
+    """Send ZPL to the local Windows Print Agent."""
 
-    if not encoded_qr_values:
+    if not settings.printer_enabled:
         raise PrinterError(
-            "No QR codes available for printing."
+            "Printer is disabled."
         )
 
-    zpl_parts: list[str] = []
-
-    for index in range(0, len(encoded_qr_values), 2):
-        left_qr = encoded_qr_values[index]
-
-        right_qr = (
-            encoded_qr_values[index + 1]
-            if index + 1 < len(encoded_qr_values)
-            else None
+    if not settings.print_agent_url:
+        raise PrinterError(
+            "Print agent is not configured."
         )
 
-        zpl_parts.append(
-            build_two_label_zpl(
-                left_qr,
-                right_qr,
-            )
+    if not zpl or not zpl.strip():
+        raise PrinterError(
+            "ZPL data is empty."
         )
 
-    return "".join(zpl_parts)
+    # Check the physical printer before submitting the job.
+    printer_status = await check_print_agent(client)
 
+    if not printer_status["connected"]:
+        raise PrinterError(
+            printer_status["message"]
+        )
 
+    agent_url = json.dumps(
+        f"{get_print_agent_url()}/print"
+    )
+
+    zpl_value = json.dumps(zpl)
+
+    result = await ui.run_javascript(
+        f"""
+        (async () => {{
+            try {{
+                const response = await fetch(
+                    {agent_url},
+                    {{
+                        method: "POST",
+                        headers: {{
+                            "Content-Type": "application/json"
+                        }},
+                        body: JSON.stringify({{
+                            zpl: {zpl_value}
+                        }})
+                    }}
+                );
+
+                const text = await response.text();
+
+                let data;
+
+                try {{
+                    data = JSON.parse(text);
+                }} catch {{
+                    data = {{
+                        detail: text
+                    }};
+                }}
+
+                return {{
+                    success: response.ok &&
+                             data.success === true,
+                    status: response.status,
+                    data: data
+                }};
+
+            }} catch (error) {{
+                return {{
+                    success: false,
+                    status: 0,
+                    data: {{
+                        detail: error.message
+                    }}
+                }};
+            }}
+        }})()
+        """,
+        timeout=20.0,
+    )
+
+    if not result:
+        raise PrinterError(
+            "No response received from the Print Agent."
+        )
+
+    if result.get("success"):
+        return result.get("data", {})
+
+    data = result.get("data", {})
+
+    raise PrinterError(
+        data.get(
+            "detail",
+            "Print request failed.",
+        )
+    )
 async def check_print_agent(
     client: Client,
 ) -> dict[str, Any]:
@@ -158,26 +228,17 @@ async def check_print_agent(
     }
 
 
-async def print_zpl(
-    client: Client,
-    zpl: str,
-) -> dict[str, Any]:
+async def print_zpl(zpl: str) -> dict[str, Any]:
     """Send ZPL to the local Windows Print Agent."""
 
     if not settings.printer_enabled:
-        raise PrinterError(
-            "Printer is disabled."
-        )
+        raise PrinterError("Printer is disabled.")
 
     if not settings.print_agent_url:
-        raise PrinterError(
-            "Print agent is not configured."
-        )
+        raise PrinterError("Print agent is not configured.")
 
     if not zpl or not zpl.strip():
-        raise PrinterError(
-            "ZPL data is empty."
-        )
+        raise PrinterError("ZPL data is empty.")
 
     agent_url = json.dumps(
         f"{get_print_agent_url()}/print"
@@ -185,7 +246,7 @@ async def print_zpl(
 
     zpl_value = json.dumps(zpl)
 
-    result = await client.run_javascript(
+    result = await ui.run_javascript(
         f"""
         (async () => {{
             try {{
@@ -202,18 +263,29 @@ async def print_zpl(
                     }}
                 );
 
-                const data = await response.json();
+                const text = await response.text();
+
+                let data;
+
+                try {{
+                    data = JSON.parse(text);
+                }} catch {{
+                    data = {{
+                        detail: text
+                    }};
+                }}
 
                 return {{
-                    success:
-                        response.ok &&
-                        data.success === true,
+                    success: response.ok &&
+                             data.success === true,
+                    status: response.status,
                     data: data
                 }};
 
             }} catch (error) {{
                 return {{
                     success: false,
+                    status: 0,
                     data: {{
                         detail: error.message
                     }}
@@ -221,7 +293,7 @@ async def print_zpl(
             }}
         }})()
         """,
-        timeout=15.0,
+        timeout=20.0,
     )
 
     if not result:
@@ -242,8 +314,37 @@ async def print_zpl(
     )
 
 
+def build_print_zpl(
+    encoded_qr_values: list[str],
+) -> str:
+    """Build ZPL for a QR batch without printing it."""
+
+    if not encoded_qr_values:
+        raise PrinterError(
+            "No QR codes available for printing."
+        )
+
+    zpl_parts: list[str] = []
+
+    for index in range(0, len(encoded_qr_values), 2):
+        left_qr = encoded_qr_values[index]
+
+        right_qr = (
+            encoded_qr_values[index + 1]
+            if index + 1 < len(encoded_qr_values)
+            else None
+        )
+
+        zpl_parts.append(
+            build_two_label_zpl(
+                left_qr,
+                right_qr,
+            )
+        )
+
+    return "".join(zpl_parts)
+
 async def print_qr_batch(
-    client: Client,
     encoded_qr_values: list[str],
 ) -> int:
     """Print a QR batch through the Windows Print Agent."""
@@ -253,18 +354,11 @@ async def print_qr_batch(
             "No QR codes available for printing."
         )
 
-    zpl = build_print_zpl(
-        encoded_qr_values
-    )
+    zpl = build_print_zpl(encoded_qr_values)
 
-    await print_zpl(
-        client,
-        zpl,
-    )
+    await print_zpl(zpl)
 
-    return (
-        len(encoded_qr_values) + 1
-    ) // 2
+    return (len(encoded_qr_values) + 1) // 2
 
 
 async def print_test_labels(
@@ -279,7 +373,4 @@ async def print_test_labels(
         right_qr,
     )
 
-    await print_zpl(
-        client,
-        zpl,
-    )
+    await print_zpl(zpl)
