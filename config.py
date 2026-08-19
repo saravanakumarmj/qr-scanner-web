@@ -45,6 +45,7 @@ class Settings:
 
     printer_name: str | None
     printer_enabled: bool
+    print_agent_url: str  | None
 
     @property
     def supabase_configured(self) -> bool:
@@ -92,6 +93,8 @@ def get_settings() -> Settings:
             os.getenv("PRINTER_ENABLED"),
             default=True,
         ),
+
+        print_agent_url=os.getenv("PRINT_AGENT_URL") or None,
     )
 
 

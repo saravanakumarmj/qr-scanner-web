@@ -4,15 +4,12 @@ from nicegui import ui
 
 from components.layout import application_layout
 from database.supabase_db import get_supabase_client
-from services.printer_service import (
-    get_printer_status,
-    print_qr_batch,
-)
+from services.printer_service import print_qr_batch
 
 
 def render_qr_reprint() -> None:
     """Render the QR bulk reprint page."""
-
+    client = ui.context.client
     selected_ranges: list[dict] = []
 
     with application_layout("Reprint QR", "reprint"):
@@ -272,7 +269,7 @@ def render_qr_reprint() -> None:
 
             refresh_ranges()
 
-        def print_selected() -> None:
+        async def print_selected() -> None:
             print_status.text = ""
 
             if not selected_ranges:
@@ -294,18 +291,7 @@ def render_qr_reprint() -> None:
                             row["qr_code_encoded"]
                         )
                 
-                printer_status = get_printer_status()
-
-                if not printer_status["connected"]:
-                    print_status.text = (
-                        "Printer not connected. "
-                        "Please connect the printer and try again."
-                    )
-                    print_status.classes(
-                        "text-negative",
-                        remove="text-positive",
-                    )
-                    return
+                
                     print_status.classes(
                         "text-negative",
                         remove="text-positive",
@@ -313,7 +299,7 @@ def render_qr_reprint() -> None:
                     return
 
                 
-                rows_printed = print_qr_batch(
+                rows_printed = await print_qr_batch(
                     encoded_values
                 )
 
