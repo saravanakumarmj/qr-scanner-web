@@ -39,3 +39,43 @@ def build_two_label_zpl(
 """
 
     return zpl
+
+
+
+def build_four_label_zpl(qr_values: list[str]) -> str:
+    """Build ZPL for up to four 25x25 mm QR labels in one row."""
+
+    if not qr_values:
+        raise ValueError("At least one QR value is required.")
+
+    if len(qr_values) > 4:
+        raise ValueError("Maximum four QR values are allowed per row.")
+
+    zpl = """^XA
+^PW800
+^LL200
+^LH0,25
+"""
+
+    for index, qr_value in enumerate(qr_values):
+        if not qr_value:
+            raise ValueError("QR value cannot be empty.")
+
+        x = index * 200
+
+        zpl += f"""
+^FO{x},2
+^A0N,20,20
+^FB200,1,0,C
+^FD{qr_value}^FS
+
+^FO{x + 15},22
+^BQN,2,7
+^FDLA,{qr_value}^FS
+"""
+
+    zpl += """
+^XZ
+"""
+
+    return zpl

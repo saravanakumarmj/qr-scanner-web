@@ -8,7 +8,7 @@ from typing import Any
 from nicegui import Client, ui
 
 from config import settings
-from utils.zpl import build_two_label_zpl
+from utils.zpl import build_two_label_zpl, build_four_label_zpl
 
 
 class PrinterError(Exception):
@@ -326,39 +326,71 @@ def build_print_zpl(
 
     zpl_parts: list[str] = []
 
-    for index in range(0, len(encoded_qr_values), 2):
-        left_qr = encoded_qr_values[index]
+    for index in range(0, len(encoded_qr_values), 4):
+        qr_batch = encoded_qr_values[index:index + 4]
+        zpl = build_four_label_zpl(qr_batch)
+        print_zpl(zpl)
+        rows_printed += 1
+        
 
-        right_qr = (
-            encoded_qr_values[index + 1]
-            if index + 1 < len(encoded_qr_values)
-            else None
-        )
+#  Commented as we are not using 2 labels per row
+    # for index in range(0, len(encoded_qr_values), 2):
+    #     left_qr = encoded_qr_values[index]
 
-        zpl_parts.append(
-            build_two_label_zpl(
-                left_qr,
-                right_qr,
-            )
-        )
+    #     right_qr = (
+    #         encoded_qr_values[index + 1]
+    #         if index + 1 < len(encoded_qr_values)
+    #         else None
+    #     )
+
+    #     zpl_parts.append(
+    #         build_two_label_zpl(
+    #             left_qr,
+    #             right_qr,
+    #         )
+    #     )
 
     return "".join(zpl_parts)
+
+
+#  this comment need to be removed once 4 lables are working good
+# async def print_qr_batch(
+#     encoded_qr_values: list[str],
+# ) -> int:
+#     """Print a QR batch through the Windows Print Agent."""
+
+#     if not encoded_qr_values:
+#         raise PrinterError(
+#             "No QR codes available for printing."
+#         )
+
+#     zpl = build_print_zpl(encoded_qr_values)
+
+#     await print_zpl(zpl)
+
+#     return (len(encoded_qr_values) + 1) // 2
+
 
 async def print_qr_batch(
     encoded_qr_values: list[str],
 ) -> int:
-    """Print a QR batch through the Windows Print Agent."""
+    """Print QR codes in rows of four through the Windows Print Agent."""
 
     if not encoded_qr_values:
-        raise PrinterError(
-            "No QR codes available for printing."
-        )
+        raise PrinterError("No QR codes available for printing.")
 
-    zpl = build_print_zpl(encoded_qr_values)
+    rows_printed = 0
 
-    await print_zpl(zpl)
+    for index in range(0, len(encoded_qr_values), 4):
+        qr_batch = encoded_qr_values[index:index + 4]
 
-    return (len(encoded_qr_values) + 1) // 2
+        zpl = build_four_label_zpl(qr_batch)
+
+        await print_zpl(zpl)
+
+        rows_printed += 1
+
+    return rows_printed
 
 
 async def print_test_labels(
